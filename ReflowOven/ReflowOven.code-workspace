@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "My_Project",
+			"path": "../../../../Ometak/My_Project"
+		},
+		{
+			"name": "HC-SRF05_Testing",
+			"path": "../../../../HC-SRF05_Testing"
+		}
+	],
+	"settings": {}
+}

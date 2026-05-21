@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+<style>
+    #rect {
+        width: 50px;
+        height: 50px;
+        background-color: green;
+    }
+
+    .row {
+        display: flex;
+        gap: 10px;
+    }
+    .box{
+        width: 100px;
+        height: 100px;
+        background: lightblue;
+    }
+
+    .led {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    position: relative;
+    display: inline-block;
+
+    transition: all 0.3s ease;
+    }
+
+    /* Red state */
+    .led.red {
+    background: radial-gradient(circle at 30% 30%, #ff6666, #990000);
+    box-shadow:
+        0 0 5px rgba(255, 0, 0, 0.8),
+        0 0 15px rgba(255, 0, 0, 0.6),
+        inset -3px -3px 6px rgba(0,0,0,0.6);
+    }
+
+    /* Green state */
+    .led.green {
+    background: radial-gradient(circle at 30% 30%, #66ff66, #006600);
+    box-shadow:
+        0 0 5px rgba(0, 255, 0, 0.8),
+        0 0 15px rgba(0, 255, 0, 0.6),
+        inset -3px -3px 6px rgba(0,0,0,0.6);
+    }
+
+    /* Highlight */
+    .led::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 5px;
+    width: 40%;
+    height: 40%;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.7);
+    filter: blur(1px);
+    }
+</style>
+
+<body>
+
+<div class='status-bar'>
+    <div class='status-dot' id='status-dot'></div>
+    <span id='status-text'>DISCONNECTED</span>
+</div>
+
+<h1>Reflow oven</h1>
+<p>ON/OFF</p>
+
+<!-- ON/OFF tlacitka -->
+<button  id='ON_BTN'  onclick='SendON()'>ON</button>
+<button  id='OFF_BTN' onclick='SendOFF()'>OFF</button>
+<h1>Nastaveni parametru ohrevu</h1>
+
+<div class="row">
+    <!-- KROK 1 PREHEAT -->
+    <div class='card' style='margin-bottom: 16px;'>
+        <div class='card-label'>Krok 1: Preheat</div>
+        <div class='input-row'>
+            <input
+                type='number'
+                id='Teplota1_ID'
+                placeholder='Zadej Teplotu'
+            />
+            <button id='send-btn1' onclick='HandleKrok1()'>SEND</button>
+        </div>
+    </div>
+    <!-- Soucasne nastaveni -->
+    <div class='card' style='margin-bottom: 16px;'>
+        <div class='card-label'>Soucasna hodnota Preheat:</div>
+        <div class='card-label' id='PreheatVal'>0.0</div>
+    </div>
+
+</div>
+
+<div class="row">
+    <!-- KROK 2 SOAK -->
+    <div class='card' style='margin-bottom: 16px;'>
+        <div class='card-label'>Krok 2: Soak</div>
+        <div class='input-row'>
+            <input
+                type='number'
+                id='DobaTrvani2_ID'
+                placeholder='Zadej Dobu trvani'
+            />
+            <button id='send-btn2' onclick='HandleKrok2()'>SEND</button>
+        </div>
+    </div>
+
+    <!-- Soucasne nastaveni -->
+    <div class='card' style='margin-bottom: 16px;'>
+        <div class='card-label'>Soucasna hodnota Soak:</div>
+        <div class='card-label' id='SoakVal'>0.0</div>
+    </div>
+
+</div>
+
+<div class="row">
+    <!-- KROK 3 REFLOW -->
+    <div class='card' style='margin-bottom: 16px;'>
+        <div class='card-label'>Krok 3: Reflow</div>
+        <div class='input-row'>
+            <input
+                type='number'
+                id='Teplota3_ID'
+                placeholder='Zadej Teplotu'
+            />
+            <button id='send-btn3' onclick='HandleKrok3()'>SEND</button>
+        </div>
+    </div>
+
+        <!-- Soucasne nastaveni -->
+    <div class='card' style='margin-bottom: 16px;'>
+        <div class='card-label'>Soucasna hodnota Reflow:</div>
+        <div class='card-label' id='ReflowVal'>0.0</div>
+    </div>
+</div>
+    <!-- KROK 4 COOLING zatim nenaimplementovan -->
+
+<!-- Indikatory -->
+<div id="rect"></div>
+
+<div class="led green"></div>
+
+<!-- HODNOTY -->
+
+<div class='card' style='margin-bottom: 16px;'>
+    <div class='card-label'>Setpoint:</div>
+    <div class='card-label' id='Setpoint'>0.0</div>
+</div>
+
+<div class='card' style='margin-bottom: 16px;'>
+    <div class='card-label'>Teplota pece:</div>
+    <div class='card-label' id='TeplotaPece'>0.0</div>
+</div>
+
+<div class='card' style='margin-bottom: 16px;'>
+    <div class='card-label'>Vykon:</div>
+    <div class='card-label' id='VykonPece'>0.0</div>
+</div>
+
+<script>
+
+    // ── WebSocket Setup ──────────────────────────────────────────
+    const WS_URL = 'ws://192.168.4.1/ws';
+    let socket = null;
+    let toggleState = false;
+
+
+    function connect() {
+        socket = new WebSocket(WS_URL);
+
+        socket.onopen = function () {
+            setStatus(true);
+        };
+
+        socket.onclose = function () {
+            setStatus(false);
+            // Auto-reconnect after 3 seconds
+            setTimeout(connect, 3000);
+        };
+
+        socket.onerror = function () {
+            setStatus(false);
+        };
+
+        socket.onmessage = function (event) {
+            // Parsovani prichoziho integer cisla a jeho vykresleni
+            const val = parseInt(event.data);
+            const display = document.getElementById('output-value');
+            display.textContent = isNaN(val) ? event.data : val;
+        };
+    }
+
+    // ── Status UI ───────────────────────────────────────────────
+    function setStatus(connected) {
+        const dot    = document.getElementById('status-dot');
+        const label  = document.getElementById('status-text');
+
+        dot.classList.toggle('connected', connected);
+        label.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
+    }
+
+    function SendON(){
+        if(!socket || socket.readyState !== WebSocket.OPEN) return;
+
+        //alert('ButtonON was clicked!');
+        toggleState = true;
+        socket.send('HEATER:ON');
+    }
+
+    function SendOFF(){
+        if(!socket || socket.readyState !== WebSocket.OPEN) return;
+
+        //alert('ButtonOFF was clicked!');
+        toggleState = false;
+        socket.send('HEATER:OFF');
+    }
+
+    function HandleKrok1(){
+        if(!socket || socket.readyState !== WebSocket.OPEN) return;
+
+        const input_teplota = document.getElementById('Teplota1_ID');
+
+        const val_teplota   = input_teplota.value.trim();
+
+        if(val_teplota == '' || isNaN(parseInt(val_teplota))) return;
+
+        let stringToSend = 'TEMP:SET:0:'+parseInt(val_teplota);
+        socket.send(stringToSend);
+        input_teplota.value = '';
+    }
+
+        function HandleKrok2(){
+        if(!socket || socket.readyState !== WebSocket.OPEN) return;
+
+        const input_doba = document.getElementById('DobaTrvani2_ID');
+
+        const val_doba      = input_doba.value.trim();
+
+        if(val_doba == '' || isNaN(parseInt(val_doba))) return;
+
+        let stringToSend = 'TIME:SET:1:'+parseInt(val_doba);
+        socket.send(stringToSend);
+        input_doba.value = '';
+    }
+
+    function HandleKrok3(){
+        if(!socket || socket.readyState !== WebSocket.OPEN) return;
+
+        const input_teplota = document.getElementById('Teplota3_ID');
+
+        const val_teplota   = input_teplota.value.trim();
+
+        if(val_teplota == '' || isNaN(parseInt(val_teplota))) return;
+
+        let stringToSend = 'TEMP:SET:2:'+parseInt(val_teplota);
+        socket.send(stringToSend);
+        input_teplota.value = '';
+    }
+
+    function ParseIncomingMessage(msg){
+        if(!socket || socket.readyState !== WebSocket.OPEN) return;
+
+        parseMsg = msg;
+
+        //console.log("Message received - 1: ", parseMsg);
+
+        if(parseMsg == "HeaterState:0"){
+            switchUnit = document.getElementById("rect");
+            switchUnit.style.backgroundColor = "green";
+            //switchUnit.classList.add("on");
+
+            switchUnit2 = document.querySelector(".led");
+            switchUnit2.classList.remove('red');
+            switchUnit2.classList.add('green');
+            console.log("Turn OFF");
+        }
+        else if(parseMsg == "HeaterState:1"){
+            switchUnit = document.getElementById("rect");
+            switchUnit.style.backgroundColor = "red";
+            //witchUnit.classList.remove("on");
+
+            switchUnit2 = document.querySelector(".led");
+            switchUnit2.classList.remove('green');
+            switchUnit2.classList.add('red');
+            console.log("Turn ON");
+        }
+        else{
+            let arr = msg.split(":");
+
+            let param = arr[1];
+
+            if(arr[0] == "VYKON"){
+                tempField = document.getElementById("VykonPece");
+                tempField.innerHTML = param + " %";
+            }
+            else if(arr[0] == "TEMP"){
+                tempField = document.getElementById("TeplotaPece");
+                tempField.innerHTML = param + ' &#8451;';
+            }
+            else if(arr[0] == "SETP"){
+                tempField = document.getElementById("Setpoint");
+                tempField.innerHTML = param + ' &#8451;';
+            }
+            else if(arr[0] == "PREH"){
+              tempField = document.getElementById("PreheatVal");
+              tempField.innerHTML = param + ' &#8451';  
+            }
+            else if(arr[0] == "SOAK"){
+              tempField = document.getElementById("SoakVal");
+              tempField.innerHTML = param + ' &#8451';  
+            }
+            else if(arr[0] == "REFL"){
+              tempField = document.getElementById("ReflowVal");
+              tempField.innerHTML = param + ' &#8451';  
+            }
+        }
+    }
+
+    // ── Start connection ─────────────────────────────────────────
+    connect();
+    //            onkeydown="if(event.key=='Enter') HandleSendTeplota()"
+
+    socket.addEventListener("message", (event) => {
+        //console.log("Message received: ", event.data);
+        ParseIncomingMessage(event.data);
+    });
+
+</script>
+
+</body>
+</html>
+)rawliteral";
