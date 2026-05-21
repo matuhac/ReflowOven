@@ -12,8 +12,8 @@ Pro zařízení byla navržena i jednoduchá aplikace pro vzdálené ovládání
 Prototyp zařízení už je hotový, projekt ale ještě není ukončen a bude se na něm dále pracovat.
 
 Trouba:
-![alt text](https://github.com/matuhac/ReflowOven/img/Trouba.png "Foto trouba")
+![alt text](https://github.com/matuhac/ReflowOven/blob/main/img/Trouba.png "Foto trouba")
 
 Blokovy diagram:
-![alt text](https://github.com/matuhac/ReflowOven/img/blokDiagram.drawio.png "Blokovy diagram")
+![alt text](https://github.com/matuhac/ReflowOven/blob/main/img/blokDiagram.drawio.png "Blokovy diagram")
 
